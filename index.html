@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>NYC 2024 General Election — Voter Turnout</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Mapbox GL JS: the library that draws the map -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js"></script>
+
+  <!-- Geocoder plugin: powers the address search box -->
+  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.3/mapbox-gl-geocoder.css" type="text/css" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.3/mapbox-gl-geocoder.min.js"></script>
+
+  <style>
+    html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+    #map { position: absolute; inset: 0; }   /* the map fills the window */
+
+    /* Top-left panel: headline, dek, search box and legend all stack in flow */
+    #headline {
+      position: absolute; z-index: 4; top: 10px; left: 10px;
+      background: #fff; color: #0000ff;
+      padding: 12px 14px; border: 1px solid #0000ff; border-radius: 2px;
+      width: 280px; max-width: 90vw;
+    }
+    #headline .title { font-size: 26px; font-weight: 900; line-height: 1.15; }
+    #headline .subtitle { font-size: 15px; color: #3a3aaa; margin-top: 7px; line-height: 1.45; }
+
+    /* Search box, mounted inside the panel */
+    #search { margin-top: 12px; }
+    #search .mapboxgl-ctrl-geocoder {
+      width: 100%; max-width: none; min-width: 0;
+      box-shadow: none; border: 1px solid #0000ff; border-radius: 2px;
+      font-size: 14px;
+    }
+
+    /* Legend, inside the panel below the search box */
+    #legend {
+      margin-top: 12px; padding-top: 10px;
+      border-top: 1px solid #cdd2f0;
+      font-size: 12px; color: #0000ff;
+    }
+    #legend h4 { margin: 0 0 6px; font-size: 12px; }
+    #legend .row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+    #legend .swatch { width: 14px; height: 14px; border-radius: 2px; }
+
+/* Add to your <style> block */
+#tooltip {
+  position: absolute; z-index: 3;
+  pointer-events: none;            /* let the mouse "pass through" to the map */
+  display: none;                   /* hidden until we hover a district */
+  background: #fff; padding: 8px 10px;
+  border: 1px solid #0000ff; border-radius: 2px;
+  font-size: 13px; line-height: 1.35; max-width: 220px; color: #0000ff;
+}
+#tooltip .name { font-weight: 900; }
+#tooltip .sub  { color: #3a3aaa; }
+
+/* Add to your <style> block */
+#drawer {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+  background: #fff; color: #0000ff;
+  padding: 16px 18px calc(16px + env(safe-area-inset-bottom));
+  border-top: 1px solid #0000ff;
+  transform: translateY(110%);     /* parked off-screen */
+  transition: transform .25s ease;
+}
+#drawer.open { transform: translateY(0); }   /* slides up when open */
+#drawer .name { font-weight: 900; font-size: 16px; }
+#drawer .sub  { color: #3a3aaa; margin-top: 4px; }
+#drawer .close {
+  position: absolute; top: 8px; right: 12px;
+  border: none; background: none; font-size: 22px; cursor: pointer; color: #0000ff;
+}
+
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Top-left panel: headline, dek, search box, legend -->
+<div id="headline">
+  <div class="title">The Turnout Divide</div>
+  <div class="subtitle">New York City backed Kamala Harris in the 2024 General Election, but turnout was wildly uneven, ranging from under 10% of registered voters in some election districts to more than 90% in others. Hover any district for the numbers.</div>
+  <div id="search"></div>
+  <div id="legend">
+    <h4>Voter turnout</h4>
+    <div class="row"><span class="swatch" style="background:#bd0026"></span> Under 45%</div>
+    <div class="row"><span class="swatch" style="background:#f03b20"></span> 45–55%</div>
+    <div class="row"><span class="swatch" style="background:#fd8d3c"></span> 55–65%</div>
+    <div class="row"><span class="swatch" style="background:#fecc5c"></span> 65–75%</div>
+    <div class="row"><span class="swatch" style="background:#ffffb2"></span> 75% and up</div>
+  </div>
+</div>
+
+  <!-- Add inside <body> -->
+<div id="tooltip"></div>
+
+<!-- Add inside <body> -->
+<div id="drawer">
+  <button class="close" aria-label="Close">×</button>
+  <div class="name"></div>
+  <div class="sub"></div>
+</div>
+
+  <script>
+    // All of our JavaScript will go here, step by step.
+
+    // Your personal access token (Step 0). Keep the quotes.
+mapboxgl.accessToken = 'pk.eyJ1Ijoid29uZ3BlaXRpbmciLCJhIjoiY21xdnJmeTlkMThrcjJzb3Ftb29zcjE3cyJ9.4Sh0krBjB2Zm4HGium5zxg';
+
+const map = new mapboxgl.Map({
+  container: 'map',                          // matches <div id="map">
+  style: 'mapbox://styles/mapbox/light-v11', // a clean, light basemap
+  center: [-73.98, 40.70],                   // [longitude, latitude] of NYC
+  zoom: 11.2
+
+});
+
+// Zoom-in / zoom-out / compass buttons
+map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+// Add right AFTER your NavigationControl line (outside map.on('load')).
+const geocoder = new MapboxGeocoder({
+  accessToken: mapboxgl.accessToken,
+  mapboxgl: mapboxgl,
+  marker: true,
+  placeholder: 'Search your address',
+  // Keep results within NYC: [west, south, east, north]
+  bbox: [-74.2591, 40.4774, -73.7002, 40.9162],
+  proximity: { longitude: -73.98, latitude: 40.70 }
+});
+map.addControl(geocoder, 'top-left');
+// addControl wires the geocoder to the map (fly-to + marker); we then move its
+// DOM node into the headline panel so the search box lives inside the box.
+document.getElementById('search').appendChild(
+  document.querySelector('.mapboxgl-ctrl-geocoder')
+);
+
+// Wait until the basemap is ready, THEN add our data on top.
+map.on('load', () => {
+  // Load the GeoJSON file as a data "source".
+  // promoteId tells Mapbox to use each district's ElectDist value as its id,
+  // which we will need for hover highlighting later.
+  map.addSource('districts', {
+    type: 'geojson',
+    data: 'turnout-2024.geojson',
+    promoteId: 'ElectDist'
+  });
+
+  // The colored fill: one shade per winning candidate.
+  map.addLayer({
+    id: 'districts-fill',
+    type: 'fill',
+    source: 'districts',
+    paint: {
+      'fill-color': [
+        'case',
+        ['!', ['has', 'turnout']], '#555555',   // no data → grey
+        [
+          'step', ['get', 'turnout'],
+          '#bd0026',          // under 45%  — deepest red: lowest turnout
+          0.45, '#f03b20',    // 45–55%
+          0.55, '#fd8d3c',    // 55–65%
+          0.65, '#fecc5c',    // 65–75%
+          0.75, '#ffffb2'     // 75%+       — pale: highest turnout
+        ]
+      ],
+      // Replace the fill layer's  'fill-opacity': 0.7  with this, so the
+// district under the cursor brightens:
+      'fill-opacity': [
+        'case',
+        ['!', ['has', 'turnout']], 0,                          // no data → blank
+        ['boolean', ['feature-state', 'hover'], false], 0.95,  // when hovered
+        0.7                                                    // normally
+      ]
+    }
+  });
+
+// Thin white borders between districts.
+// (Add this INSIDE map.on('load'), right after the fill layer.)
+map.addLayer({
+  id: 'districts-line',
+  type: 'line',
+  source: 'districts',
+  paint: {
+    'line-color': '#ffffff',
+    'line-width': 0.5,
+    'line-opacity': ['case', ['!', ['has', 'turnout']], 0, 1]   // hide borders of no-data districts
+  }
+});
+
+// A dark outline that appears ONLY on the hovered district.
+// (Add INSIDE map.on('load'), after the borders layer.)
+map.addLayer({
+  id: 'districts-hover',
+  type: 'line',
+  source: 'districts',
+  paint: {
+    'line-color': '#111111',
+    'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0]
+  }
+});
+
+// Add INSIDE map.on('load'), after the layers.
+const tooltip = document.getElementById('tooltip');
+let hoveredId = null;
+
+// Build the text shown for one district.
+function describe(props) {
+  if (!('turnout' in props)) {
+    return {
+      name: `Election District ${props.ElectDist}`,
+      sub:  `No turnout data`
+    };
+  }
+  const pct = (props.turnout * 100).toFixed(1);
+  return {
+    name: `Election District ${props.ElectDist}`,
+    sub:  `Turnout: <b>${pct}%</b><br>${props.voted.toLocaleString()} of ${props.registered.toLocaleString()} registered voters`
+  };
+}
+
+// Only devices with a real mouse get hover behavior (desktops/laptops).
+const canHover = window.matchMedia('(hover: hover)').matches;
+
+if (canHover) {
+  map.on('mousemove', 'districts-fill', (e) => {
+    const f = e.features[0];
+
+    // No-data districts (parks, etc.) are blank and inert — ignore them.
+    if (!('turnout' in f.properties)) {
+      map.getCanvas().style.cursor = '';
+      if (hoveredId !== null) {
+        map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
+        hoveredId = null;
+      }
+      tooltip.style.display = 'none';
+      return;
+    }
+    map.getCanvas().style.cursor = 'pointer';
+
+    // Move the "hover" highlight from the old district to the new one.
+    if (hoveredId !== null) {
+      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
+    }
+    hoveredId = f.id;
+    map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: true });
+
+    const info = describe(f.properties);
+    tooltip.innerHTML = `<div class="name">${info.name}</div><div class="sub">${info.sub}</div>`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.point.x + 14) + 'px';
+    tooltip.style.top  = (e.point.y + 14) + 'px';
+  });
+
+}
+// Add this right after the closing brace of the `if (canHover) { ... }`
+// block from Step 5, so the whole thing reads `if (canHover) { ... } else { ... }`.
+else {
+  // Mobile / touch: tap a district to open the bottom drawer.
+  const drawer = document.getElementById('drawer');
+
+  map.on('click', 'districts-fill', (e) => {
+    const f = e.features[0];
+
+    // No-data districts are blank and inert — ignore taps.
+    if (!('turnout' in f.properties)) return;
+
+    if (hoveredId !== null) {
+      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
+    }
+    hoveredId = f.id;
+    map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: true });
+
+    const info = describe(f.properties);
+    drawer.querySelector('.name').textContent = info.name;
+    drawer.querySelector('.sub').innerHTML = info.sub;
+    drawer.classList.add('open');
+  });
+
+  drawer.querySelector('.close').addEventListener('click', () => {
+    drawer.classList.remove('open');
+    if (hoveredId !== null) {
+      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
+      hoveredId = null;
+    }
+  });
+}
+
+map.on('mouseleave', 'districts-fill', () => {
+    map.getCanvas().style.cursor = '';
+    if (hoveredId !== null) {
+      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
+    }
+    hoveredId = null;
+    tooltip.style.display = 'none';
+  });
+
+});
+
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# Local secrets / config copy (token is restricted by URL in Mapbox; this .env is unused by the page)
+.env
+
+# Bundled tutorial — its own separate git repo
+interactive-map-tutorial/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS / editor junk
+.DS_Store
+*.swp
+*~
