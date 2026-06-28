@@ -1,35 +1,41 @@
-# The Turnout Divide — NYC 2024 voter turnout map
+# The Turnout Divide — NYC voter turnout, 2022–2024
 
-An interactive choropleth of voter turnout in New York City's roughly 4,000 election
-districts in the 2024 General Election. Each district is shaded by the share of its
-registered voters who cast a ballot, from under 45% (deep red) to 75%+ (pale yellow).
-Hover any district for its turnout rate and raw counts.
+An interactive choropleth of voter turnout across New York City's roughly 4,000 election districts. A time slider steps through **eight elections from 2022 to 2024** (primaries and general elections), crossfading between them. Each district is shaded by the share of its registered voters who cast a ballot, and the color scale **rescales to each election** so low-turnout primaries stay legible alongside high-turnout generals. Hover or click any district for its turnout rate and raw counts.
 
 Built with [Mapbox GL JS](https://docs.mapbox.com/mapbox-gl-js/).
 
+## Features
+
+- **Time slider** through eight elections, with a 450ms crossfade between them.
+- **Adaptive color** — per-election quintile breaks, so each map shows its own spread.
+- **Click a legend band** to isolate those districts; **click a district** to pin its numbers.
+- **Locate me** (GPS), shareable **URL view state** (`#zoom/lat/lng`), and a swoop-in on load.
+
 ## Files
 
-- `index.html` — the map (Mapbox GL JS, geocoder search, hover tooltip, mobile drawer).
-- `turnout-2024.geojson` — district polygons joined to turnout numbers; what the map loads.
-- `build_turnout.py` — builds `turnout-2024.geojson` by joining the turnout CSV to the
-  district geometry on `ElectDist`.
-- `election-results.geojson` — the source district geometry (originally a 2025 mayoral
-  primary file; only its shapes and `ElectDist` ids are reused here).
+- `index.html` — the map (Mapbox GL JS, geocoder search, time slider, hover/click readouts).
+- `turnout-series.geojson` — district polygons joined to per-election turnout numbers; what the map loads. Built from the CSV + geometry.
+- `series-meta.json` — the ordered election list with per-election color breaks (reference output of the build; the page keeps its own inline copy in the `ELECTIONS` array).
+- `build_series.py` — builds `turnout-series.geojson` and `series-meta.json` by joining the turnout CSV to the district geometry on `ElectDist`.
+- `election-results.geojson` — the source district geometry (originally a 2025 mayoral primary file; only its shapes and `ElectDist` ids are reused here).
 - `Historical_Voter_Turnout_20260626.csv` — raw turnout export (see Data source).
 
 ## Data source
 
-NYC Open Data — [Historical Voter Turnout](https://data.cityofnewyork.us/City-Government/Historical-Voter-Turnout/rixx-fc37/about_data)
-(dataset `rixx-fc37`), filtered to `Geo_Level = "Election District"` and
-`Election = "2024 General Election"`. Turnout is reported by the source; registered
-voters are derived as `Voted + Did_Not_Vote`. Districts with no matching data (parks and
-other non-residential areas) render blank.
+NYC Open Data — [Historical Voter Turnout](https://data.cityofnewyork.us/City-Government/Historical-Voter-Turnout/rixx-fc37/about_data) (dataset `rixx-fc37`), filtered to `Geo_Level = "Election District"`. Turnout is reported by the source; registered voters are derived as `Voted + Did_Not_Vote`.
+
+### Two things to know about the data
+
+- **Only 2022–2024 elections are included.** They share the current district map. Pre-2022 elections are excluded because the 2022 redistricting changed ED boundaries: the codes line up but the geography doesn't, so joining them would be a false join.
+- **Blank districts in primaries mean "no contest," not "no turnout."** New York runs closed party primaries, and a race only appears where it was contested. Districts with no primary on the ballot are reported as `NA` (often with every voter marked "Not Eligible to Vote") and render blank. Generals fill the whole city; primaries light up only ~70% of districts, but is not to be read as low participation.
 
 ## Rebuild
 
 ```bash
-python3 build_turnout.py
+python3 build_series.py
 ```
+
+If the election set or breaks change, update the inline `ELECTIONS` array near the top of the `<script>` in `index.html` to match `series-meta.json`.
 
 ## Run locally
 
@@ -38,5 +44,4 @@ python3 -m http.server 8000
 # then open http://localhost:8000/index.html
 ```
 
-The Mapbox access token in `index.html` is a public client-side token restricted to this
-project's URLs in the Mapbox account.
+The Mapbox access token in `index.html` is a public client-side token restricted by URL in the Mapbox account to `https://wongpeiting.github.io/`. Because of that restriction the basemap tiles (and their labels) will not load from `localhost` or `file://` — only from the published GitHub Pages URL. The colored districts still draw locally since they come from the local GeoJSON, which does not need the token.

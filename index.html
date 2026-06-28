@@ -47,8 +47,54 @@
       font-size: 16px; color: #1b2a4a;
     }
     #legend h4 { margin: 0 0 7px; font-size: 16px; }
-    #legend .row { display: flex; align-items: center; gap: 9px; margin: 5px 0; }
-    #legend .swatch { width: 18px; height: 18px; border-radius: 2px; }
+    #legend .row {
+      display: flex; align-items: center; gap: 9px; margin: 3px 0;
+      padding: 3px 5px; border-radius: 3px; cursor: pointer; user-select: none;
+    }
+    #legend .row:hover { background: #eef1f6; }
+    #legend .row.active { background: #1b2a4a; color: #fff; }
+    #legend.filtered .row:not(.active) { opacity: 0.4; }
+    #legend .swatch { width: 18px; height: 18px; border-radius: 2px; flex: none; }
+    #filter-reset {
+      display: none; margin-top: 9px; font: inherit; font-size: 13px; cursor: pointer;
+      background: #fff; border: 1px solid #1b2a4a; color: #1b2a4a;
+      border-radius: 2px; padding: 5px 9px;
+    }
+    #legend.filtered #filter-reset { display: inline-block; }
+    #legend .hint { font-size: 12px; color: #8a93a6; margin-top: 8px; line-height: 1.35; }
+    /* Caveat shown only on primary elections (toggled in setElection) */
+    #legend .note-primary {
+      display: none; font-size: 12px; line-height: 1.35; color: #7a8294;
+      margin-top: 7px; padding-left: 8px; border-left: 2px solid #bd0026;
+    }
+
+    /* Pinned popup (click a district), styled to match the navy theme */
+    .mapboxgl-popup-content {
+      border: 1px solid #1b2a4a; border-radius: 2px; padding: 10px 26px 10px 12px;
+      font-size: 13px; line-height: 1.35; color: #1b2a4a; box-shadow: 0 1px 6px rgba(0,0,0,.18);
+    }
+    .mapboxgl-popup-content .name { font-weight: 900; }
+    .mapboxgl-popup-content .sub  { color: #5b6781; }
+    .mapboxgl-popup-close-button { font-size: 18px; color: #1b2a4a; padding: 0 6px; }
+
+    /* Time slider, integrated into the panel under the legend */
+    #timeslider {
+      margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid #d9dde6;
+    }
+    #timeslider #elec-cta {
+      font-size: 12.5px; line-height: 1.35; color: #8a93a6; margin-bottom: 7px;
+    }
+    #timeslider #elec-label {
+      font-family: 'Source Serif 4', Georgia, serif; font-weight: 700; font-size: 16px;
+      color: #1b2a4a; margin-bottom: 6px;
+    }
+    #timeslider #elec-label .yr { color: #bd0026; }
+    #timeslider input[type=range] {
+      width: 100%; margin: 0; cursor: pointer; accent-color: #bd0026; height: 16px;
+    }
+    #timeslider #elec-ticks { display: flex; justify-content: space-between; margin-top: 3px; }
+    #timeslider #elec-ticks span { font-size: 11px; color: #aab0bd; }
 
 /* Add to your <style> block */
 #tooltip {
@@ -79,6 +125,16 @@
   border: none; background: none; font-size: 22px; cursor: pointer; color: #1b2a4a;
 }
 
+/* Bigger map controls: the zoom +/- buttons and the locate-me button */
+.mapboxgl-ctrl-group button {
+  width: 42px; height: 42px;
+}
+.mapboxgl-ctrl-group button .mapboxgl-ctrl-icon {
+  background-size: 24px 24px;   /* scale the +/-, compass and GPS icons up too */
+}
+/* Push the top-right controls (+/-, compass, locate-me) further from the corner */
+.mapboxgl-ctrl-top-right { top: 16px; right: 16px; }
+
   </style>
 </head>
 <body>
@@ -91,11 +147,21 @@
   <div id="search"></div>
   <div id="legend">
     <h4>Voter turnout</h4>
-    <div class="row"><span class="swatch" style="background:#bd0026"></span> Under 45%</div>
-    <div class="row"><span class="swatch" style="background:#f03b20"></span> 45–55%</div>
-    <div class="row"><span class="swatch" style="background:#fd8d3c"></span> 55–65%</div>
-    <div class="row"><span class="swatch" style="background:#fecc5c"></span> 65–75%</div>
-    <div class="row"><span class="swatch" style="background:#ffffb2"></span> 75% and up</div>
+    <div class="row"><span class="swatch" style="background:#bd0026"></span><span class="label"></span></div>
+    <div class="row"><span class="swatch" style="background:#f03b20"></span><span class="label"></span></div>
+    <div class="row"><span class="swatch" style="background:#fd8d3c"></span><span class="label"></span></div>
+    <div class="row"><span class="swatch" style="background:#fecc5c"></span><span class="label"></span></div>
+    <div class="row"><span class="swatch" style="background:#ffffb2"></span><span class="label"></span></div>
+    <button id="filter-reset" type="button">Show all districts</button>
+    <div class="hint">Bands rescale to each election. Click a band to isolate it; click a district to pin its numbers.</div>
+    <div id="primary-note" class="note-primary">Blank districts had no primary on the ballot, not zero turnout.</div>
+  </div>
+  <!-- Time slider, integrated under the legend -->
+  <div id="timeslider">
+    <div id="elec-cta">See how turnout compares across elections</div>
+    <div id="elec-label"></div>
+    <input id="elec-range" type="range" min="0" max="7" step="1" value="7" aria-label="Choose an election">
+    <div id="elec-ticks"></div>
   </div>
 </div>
 
@@ -115,16 +181,39 @@
     // Your personal access token (Step 0). Keep the quotes.
 mapboxgl.accessToken = 'pk.eyJ1Ijoid29uZ3BlaXRpbmciLCJhIjoiY21xdnJmeTlkMThrcjJzb3Ftb29zcjE3cyJ9.4Sh0krBjB2Zm4HGium5zxg';
 
+// The eight elections the slider steps through (chronological). `breaks` are the
+// per-election quintile cutoffs from build_series.py, so the choropleth rescales to
+// each race (primaries run far lower than generals). Regenerate via build_series.py.
+const ELECTIONS = [
+  { key: '22SP', year: '2022', short: 'State Primary',        breaks: [0.084, 0.112, 0.145, 0.2000] },
+  { key: '22FP', year: '2022', short: 'Federal Primary',      breaks: [0.064, 0.095, 0.1322, 0.222] },
+  { key: '22G',  year: '2022', short: 'General Election',     breaks: [0.252, 0.326, 0.404, 0.5126] },
+  { key: '23CP', year: '2023', short: 'City Primary',         breaks: [0.036, 0.050, 0.068, 0.104] },
+  { key: '23G',  year: '2023', short: 'General Election',     breaks: [0.072, 0.099, 0.130, 0.176] },
+  { key: '24PP', year: '2024', short: 'Presidential Primary', breaks: [0.033, 0.047, 0.065, 0.093] },
+  { key: '24SP', year: '2024', short: 'State Primary',        breaks: [0.048, 0.069, 0.097, 0.146] },
+  { key: '24G',  year: '2024', short: 'General Election',     breaks: [0.495, 0.558, 0.621, 0.708] },
+];
+// Full label used in tooltips/popups, e.g. "2024 General Election".
+ELECTIONS.forEach((e) => { e.name = `${e.year} ${e.short}`; });
+
 const map = new mapboxgl.Map({
   container: 'map',                          // matches <div id="map">
   style: 'mapbox://styles/mapbox/light-v11', // a clean, light basemap
   center: [-73.98, 40.70],                   // [longitude, latitude] of NYC
-  zoom: 10.7
-
+  zoom: 10.7,
+  hash: true   // sync map position to the URL (#zoom/lat/lng) so views are shareable
 });
 
 // Zoom-in / zoom-out / compass buttons
 map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+// "Locate me" button: pans to the reader's GPS location and drops a dot.
+map.addControl(new mapboxgl.GeolocateControl({
+  positionOptions: { enableHighAccuracy: true },
+  trackUserLocation: true,   // keep the dot updated as they move
+  showUserHeading: true      // show which way they're facing
+}), 'top-right');
 
 // Add right AFTER your NavigationControl line (outside map.on('load')).
 const geocoder = new MapboxGeocoder({
@@ -145,193 +234,237 @@ document.getElementById('search').appendChild(
 
 // Wait until the basemap is ready, THEN add our data on top.
 map.on('load', () => {
-  // Load the GeoJSON file as a data "source".
-  // promoteId tells Mapbox to use each district's ElectDist value as its id,
-  // which we will need for hover highlighting later.
+  // One GeoJSON holds every election's numbers per district (t/v/r + election key).
   map.addSource('districts', {
     type: 'geojson',
-    data: 'turnout-2024.geojson',
+    data: 'turnout-series.geojson',
     promoteId: 'ElectDist'
   });
 
   // Find the basemap's first label layer so we can insert our data UNDERNEATH it.
-  // That keeps neighbourhood and street names readable on top of the colored districts.
   const labelLayerId = map.getStyle().layers.find(
     (l) => l.type === 'symbol' && l.layout && l.layout['text-field']
   )?.id;
 
-  // The colored fill: one shade per turnout band (inserted below the labels).
-  map.addLayer({
-    id: 'districts-fill',
-    type: 'fill',
-    source: 'districts',
-    paint: {
-      'fill-color': [
-        'case',
-        ['!', ['has', 'turnout']], '#555555',   // no data → grey
-        [
-          'step', ['get', 'turnout'],
-          '#bd0026',          // under 45%  — deepest red: lowest turnout
-          0.45, '#f03b20',    // 45–55%
-          0.55, '#fd8d3c',    // 55–65%
-          0.65, '#fecc5c',    // 65–75%
-          0.75, '#ffffb2'     // 75%+       — pale: highest turnout
-        ]
-      ],
-      // Replace the fill layer's  'fill-opacity': 0.7  with this, so the
-// district under the cursor brightens:
-      'fill-opacity': [
-        'case',
-        ['!', ['has', 'turnout']], 0,                          // no data → blank
-        ['boolean', ['feature-state', 'hover'], false], 0.95,  // when hovered
-        0.7                                                    // normally
-      ]
+  const RAMP = ['#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']; // low → high turnout
+  const FADE = 450;                            // crossfade duration between elections (ms)
+  const FILL = 0.7;                            // resting opacity of the colored districts
+  let cur = ELECTIONS[ELECTIONS.length - 1];   // default to the most recent election
+  let activeBand = null;                       // 0..4 when a legend band is isolated
+  let front = 'districts-fill-a';              // which fill layer currently shows `cur`
+  const dataLayers = ['districts-fill-a', 'districts-fill-b', 'districts-line', 'districts-hover', 'districts-hit'];
+  const tkey = (m) => 't' + m.key;             // turnout property name for an election
+  const hasData = (props) => tkey(cur) in props;
+
+  // Fill color for election `m`, rescaled to its own breaks. Districts with no data
+  // this election are transparent (alpha 0) so a single opacity can crossfade the layer.
+  const fillColor = (m) => [
+    'case',
+    ['!', ['has', tkey(m)]], 'rgba(0,0,0,0)',
+    ['step', ['get', tkey(m)],
+      RAMP[0], m.breaks[0], RAMP[1], m.breaks[1], RAMP[2], m.breaks[2], RAMP[3], m.breaks[3], RAMP[4]]
+  ];
+  const lineOpacity = (m) => ['case', ['!', ['has', tkey(m)]], 0, 1]; // hide no-data borders
+
+  // Two stacked fill layers we crossfade between; white borders + a hover-only dark
+  // outline on top; and a fully transparent "hit" layer that catches hover/clicks so
+  // interactions don't care which fill layer is currently fading.
+  map.addLayer({ id: 'districts-fill-a', type: 'fill', source: 'districts',
+    paint: { 'fill-color': fillColor(cur), 'fill-opacity': FILL, 'fill-opacity-transition': { duration: FADE } } }, labelLayerId);
+  map.addLayer({ id: 'districts-fill-b', type: 'fill', source: 'districts',
+    paint: { 'fill-color': fillColor(cur), 'fill-opacity': 0,    'fill-opacity-transition': { duration: FADE } } }, labelLayerId);
+  map.addLayer({ id: 'districts-line', type: 'line', source: 'districts',
+    paint: { 'line-color': '#ffffff', 'line-width': 0.5, 'line-opacity': lineOpacity(cur) } }, labelLayerId);
+  map.addLayer({ id: 'districts-hover', type: 'line', source: 'districts',
+    paint: { 'line-color': '#111111', 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0] } }, labelLayerId);
+  map.addLayer({ id: 'districts-hit', type: 'fill', source: 'districts',
+    paint: { 'fill-color': '#000000', 'fill-opacity': 0 } }, labelLayerId);
+
+  // Darken the basemap's labels with a white halo so names stay crisp over the colors.
+  map.getStyle().layers.forEach((l) => {
+    if (l.type === 'symbol' && l.layout && l.layout['text-field']) {
+      map.setPaintProperty(l.id, 'text-color', '#1a1a1a');
+      map.setPaintProperty(l.id, 'text-halo-color', '#ffffff');
+      map.setPaintProperty(l.id, 'text-halo-width', 1.4);
     }
-  }, labelLayerId);
+  });
 
-// Thin white borders between districts.
-// (Add this INSIDE map.on('load'), right after the fill layer.)
-map.addLayer({
-  id: 'districts-line',
-  type: 'line',
-  source: 'districts',
-  paint: {
-    'line-color': '#ffffff',
-    'line-width': 0.5,
-    'line-opacity': ['case', ['!', ['has', 'turnout']], 0, 1]   // hide borders of no-data districts
+  // Show more neighbourhood labels (e.g. Williamsburg) by relaxing the density filter.
+  if (map.getLayer('settlement-subdivision-label')) {
+    map.setFilter('settlement-subdivision-label', [
+      'all',
+      ['match', ['get', 'class'],
+        ['settlement_subdivision', 'disputed_settlement_subdivision'],
+        ['match', ['get', 'worldview'], ['all', 'US'], true, false],
+        false],
+      ['<=', ['get', 'filterrank'], 5]
+    ]);
   }
-}, labelLayerId);
 
-// A dark outline that appears ONLY on the hovered district.
-// (Add INSIDE map.on('load'), after the borders layer.)
-map.addLayer({
-  id: 'districts-hover',
-  type: 'line',
-  source: 'districts',
-  paint: {
-    'line-color': '#111111',
-    'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0]
-  }
-}, labelLayerId);
+  const tooltip = document.getElementById('tooltip');
+  let hoveredId = null;
 
-// Darken the basemap's labels and give them a white halo so neighbourhood and
-// street names stay crisp on top of the colored districts.
-map.getStyle().layers.forEach((l) => {
-  if (l.type === 'symbol' && l.layout && l.layout['text-field']) {
-    map.setPaintProperty(l.id, 'text-color', '#1a1a1a');
-    map.setPaintProperty(l.id, 'text-halo-color', '#ffffff');
-    map.setPaintProperty(l.id, 'text-halo-width', 1.4);
-  }
-});
-
-// Show more neighbourhood labels (e.g. Williamsburg) at this zoom by relaxing
-// the basemap's density filter on the subdivision-label layer (filterrank 3 -> 5).
-if (map.getLayer('settlement-subdivision-label')) {
-  map.setFilter('settlement-subdivision-label', [
-    'all',
-    ['match', ['get', 'class'],
-      ['settlement_subdivision', 'disputed_settlement_subdivision'],
-      ['match', ['get', 'worldview'], ['all', 'US'], true, false],
-      false],
-    ['<=', ['get', 'filterrank'], 5]
-  ]);
-}
-
-// Add INSIDE map.on('load'), after the layers.
-const tooltip = document.getElementById('tooltip');
-let hoveredId = null;
-
-// Build the text shown for one district.
-function describe(props) {
-  if (!('turnout' in props)) {
+  // The numbers shown for one district in the CURRENT election.
+  function describe(props) {
+    if (!hasData(props)) {
+      return { name: `Election District ${props.ElectDist}`, sub: `No data for ${cur.name}` };
+    }
+    const t = props['t' + cur.key], v = props['v' + cur.key], r = props['r' + cur.key];
     return {
       name: `Election District ${props.ElectDist}`,
-      sub:  `No turnout data`
+      sub: `${cur.name}<br>Turnout: <b>${(t * 100).toFixed(1)}%</b><br>` +
+           `${v.toLocaleString()} of ${r.toLocaleString()} registered voters`
     };
   }
-  const pct = (props.turnout * 100).toFixed(1);
-  return {
-    name: `Election District ${props.ElectDist}`,
-    sub:  `Turnout: <b>${pct}%</b><br>${props.voted.toLocaleString()} of ${props.registered.toLocaleString()} registered voters`
-  };
-}
 
-// Only devices with a real mouse get hover behavior (desktops/laptops).
-const canHover = window.matchMedia('(hover: hover)').matches;
+  // ---- Legend + turnout-band filter (both rescale to the current election) ----
+  const legendEl = document.getElementById('legend');
+  const bandRows = Array.from(legendEl.querySelectorAll('.row'));
+  const resetBtn = document.getElementById('filter-reset');
+  const primaryNote = document.getElementById('primary-note');
+  const fmtPct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
 
-if (canHover) {
-  map.on('mousemove', 'districts-fill', (e) => {
-    const f = e.features[0];
+  const bandRange = (i, br) => [i === 0 ? '' : br[i - 1], i === 4 ? '' : br[i]]; // [min,max]
 
-    // No-data districts (parks, etc.) are blank and inert — ignore them.
-    if (!('turnout' in f.properties)) {
-      map.getCanvas().style.cursor = '';
-      if (hoveredId !== null) {
-        map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
-        hoveredId = null;
+  function relabelLegend(br) {
+    bandRows.forEach((row, i) => {
+      const [lo, hi] = bandRange(i, br);
+      row.querySelector('.label').textContent =
+        i === 0 ? `Under ${fmtPct(hi)}` :
+        i === 4 ? `${fmtPct(lo)} and up` :
+        `${fmtPct(lo)}–${fmtPct(hi)}`;
+    });
+  }
+  function applyBand(i) {
+    const [lo, hi] = bandRange(i, cur.breaks);
+    const f = ['all', ['has', tkey(cur)]];
+    if (lo !== '') f.push(['>=', ['get', tkey(cur)], lo]);
+    if (hi !== '') f.push(['<',  ['get', tkey(cur)], hi]);
+    dataLayers.forEach((id) => map.setFilter(id, f));
+  }
+  function clearFilter() {
+    activeBand = null;
+    dataLayers.forEach((id) => map.setFilter(id, null));
+    legendEl.classList.remove('filtered');
+    bandRows.forEach((r) => r.classList.remove('active'));
+  }
+  bandRows.forEach((row, i) => {
+    row.addEventListener('click', () => {
+      if (activeBand === i) { clearFilter(); return; }   // toggle off
+      activeBand = i;
+      bandRows.forEach((r) => r.classList.remove('active'));
+      row.classList.add('active');
+      legendEl.classList.add('filtered');
+      applyBand(i);
+    });
+  });
+  resetBtn.addEventListener('click', clearFilter);
+
+  // ---- Time slider: step through the eight elections ----
+  const range = document.getElementById('elec-range');
+  const label = document.getElementById('elec-label');
+  const ticks = document.getElementById('elec-ticks');
+  range.max = ELECTIONS.length - 1;
+  range.value = ELECTIONS.length - 1;
+  // Subtle endpoint years for orientation (the big label names the current election).
+  ticks.innerHTML = `<span>${ELECTIONS[0].year}</span><span>${ELECTIONS[ELECTIONS.length - 1].year}</span>`;
+
+  function setElection(i, animate = true) {
+    cur = ELECTIONS[i];
+    const back = front === 'districts-fill-a' ? 'districts-fill-b' : 'districts-fill-a';
+    map.setPaintProperty(back, 'fill-color', fillColor(cur));   // recolor the hidden layer
+    if (animate) {
+      map.setPaintProperty(back, 'fill-opacity', FILL);         // fade the new election in
+      map.setPaintProperty(front, 'fill-opacity', 0);           // fade the old election out
+      front = back;
+    } else {                                                    // initial paint, no fade
+      map.setPaintProperty(front, 'fill-color', fillColor(cur));
+      map.setPaintProperty(front, 'fill-opacity', FILL);
+      map.setPaintProperty(back, 'fill-opacity', 0);
+    }
+    map.setPaintProperty('districts-line', 'line-opacity', lineOpacity(cur));
+    relabelLegend(cur.breaks);
+    if (activeBand !== null) applyBand(activeBand);   // keep the isolated band, rescaled
+    label.innerHTML = `<span class="yr">${cur.year}</span> ${cur.short}`;
+    primaryNote.style.display = cur.short.includes('Primary') ? 'block' : 'none';
+  }
+  range.addEventListener('input', () => setElection(+range.value));
+  setElection(ELECTIONS.length - 1, false);   // initialise without a fade
+
+  // ---- Interactions ----
+  const canHover = window.matchMedia('(hover: hover)').matches;
+
+  if (canHover) {
+    map.on('mousemove', 'districts-hit', (e) => {
+      const f = e.features[0];
+      if (!hasData(f.properties)) {   // no-data districts are blank and inert
+        map.getCanvas().style.cursor = '';
+        if (hoveredId !== null) { map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false }); hoveredId = null; }
+        tooltip.style.display = 'none';
+        return;
       }
-      tooltip.style.display = 'none';
-      return;
-    }
-    map.getCanvas().style.cursor = 'pointer';
+      map.getCanvas().style.cursor = 'pointer';
+      if (hoveredId !== null) map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
+      hoveredId = f.id;
+      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: true });
 
-    // Move the "hover" highlight from the old district to the new one.
-    if (hoveredId !== null) {
-      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
-    }
-    hoveredId = f.id;
-    map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: true });
+      const info = describe(f.properties);
+      tooltip.innerHTML = `<div class="name">${info.name}</div><div class="sub">${info.sub}</div>`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.point.x + 14) + 'px';
+      tooltip.style.top  = (e.point.y + 14) + 'px';
+    });
 
-    const info = describe(f.properties);
-    tooltip.innerHTML = `<div class="name">${info.name}</div><div class="sub">${info.sub}</div>`;
-    tooltip.style.display = 'block';
-    tooltip.style.left = (e.point.x + 14) + 'px';
-    tooltip.style.top  = (e.point.y + 14) + 'px';
-  });
+    // Click a district to PIN its numbers in a popup that stays put.
+    const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '240px' });
+    map.on('click', 'districts-hit', (e) => {
+      const f = e.features[0];
+      if (!hasData(f.properties)) return;
+      const info = describe(f.properties);
+      popup.setLngLat(e.lngLat)
+           .setHTML(`<div class="name">${info.name}</div><div class="sub">${info.sub}</div>`)
+           .addTo(map);
+    });
+  } else {
+    // Mobile / touch: tap a district to open the bottom drawer.
+    const drawer = document.getElementById('drawer');
+    map.on('click', 'districts-hit', (e) => {
+      const f = e.features[0];
+      if (!hasData(f.properties)) return;
+      if (hoveredId !== null) map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
+      hoveredId = f.id;
+      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: true });
 
-}
-// Add this right after the closing brace of the `if (canHover) { ... }`
-// block from Step 5, so the whole thing reads `if (canHover) { ... } else { ... }`.
-else {
-  // Mobile / touch: tap a district to open the bottom drawer.
-  const drawer = document.getElementById('drawer');
+      const info = describe(f.properties);
+      drawer.querySelector('.name').textContent = info.name;
+      drawer.querySelector('.sub').innerHTML = info.sub;
+      drawer.classList.add('open');
+    });
+    drawer.querySelector('.close').addEventListener('click', () => {
+      drawer.classList.remove('open');
+      if (hoveredId !== null) { map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false }); hoveredId = null; }
+    });
+  }
 
-  map.on('click', 'districts-fill', (e) => {
-    const f = e.features[0];
-
-    // No-data districts are blank and inert — ignore taps.
-    if (!('turnout' in f.properties)) return;
-
-    if (hoveredId !== null) {
-      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
-    }
-    hoveredId = f.id;
-    map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: true });
-
-    const info = describe(f.properties);
-    drawer.querySelector('.name').textContent = info.name;
-    drawer.querySelector('.sub').innerHTML = info.sub;
-    drawer.classList.add('open');
-  });
-
-  drawer.querySelector('.close').addEventListener('click', () => {
-    drawer.classList.remove('open');
-    if (hoveredId !== null) {
-      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
-      hoveredId = null;
-    }
-  });
-}
-
-map.on('mouseleave', 'districts-fill', () => {
+  map.on('mouseleave', 'districts-hit', () => {
     map.getCanvas().style.cursor = '';
-    if (hoveredId !== null) {
-      map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
-    }
+    if (hoveredId !== null) map.setFeatureState({ source: 'districts', id: hoveredId }, { hover: false });
     hoveredId = null;
     tooltip.style.display = 'none';
   });
 
+  // ---- Cinematic swoop-in on first load ----
+  // Skipped when the page is opened via a shared #hash link, so those land exactly.
+  if (!window.location.hash) {
+    map.jumpTo({ center: [-73.98, 40.70], zoom: 2.4 });
+    map.flyTo({
+      center: [-73.98, 40.70],
+      zoom: 10.7,
+      speed: 0.7,      // gentler = slower swoop
+      curve: 1.6,      // arc of the zoom path
+      essential: true  // run even if the user prefers reduced motion off
+    });
+  }
 });
 
 
