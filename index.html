@@ -200,8 +200,8 @@ ELECTIONS.forEach((e) => { e.name = `${e.year} ${e.short}`; });
 const map = new mapboxgl.Map({
   container: 'map',                          // matches <div id="map">
   style: 'mapbox://styles/mapbox/light-v11', // a clean, light basemap
-  center: [-73.98, 40.70],                   // [longitude, latitude] of NYC
-  zoom: 10.7,
+  center: [-73.96, 40.71],                   // [longitude, latitude] of NYC
+  zoom: 9.8,
   hash: true   // sync map position to the URL (#zoom/lat/lng) so views are shareable
 });
 
@@ -456,10 +456,10 @@ map.on('load', () => {
   // ---- Cinematic swoop-in on first load ----
   // Skipped when the page is opened via a shared #hash link, so those land exactly.
   if (!window.location.hash) {
-    map.jumpTo({ center: [-73.98, 40.70], zoom: 2.4 });
+    map.jumpTo({ center: [-73.96, 40.71], zoom: 2.4 });
     map.flyTo({
-      center: [-73.98, 40.70],
-      zoom: 10.7,
+      center: [-73.96, 40.71],
+      zoom: 9.8,
       speed: 0.7,      // gentler = slower swoop
       curve: 1.6,      // arc of the zoom path
       essential: true  // run even if the user prefers reduced motion off
