@@ -103,10 +103,20 @@
   display: none;                   /* hidden until we hover a district */
   background: #fff; padding: 8px 10px;
   border: 1px solid #1b2a4a; border-radius: 2px;
-  font-size: 13px; line-height: 1.35; max-width: 220px; color: #1b2a4a;
+  font-size: 13px; line-height: 1.35; max-width: 250px; color: #1b2a4a;
 }
 #tooltip .name { font-weight: 900; }
 #tooltip .sub  { color: #5b6781; }
+
+/* Per-election turnout breakdown shown in the tooltip, popup, and mobile drawer */
+.tt-head { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: #8a93a6; margin: 3px 0 3px; }
+.tt-table { border-collapse: collapse; width: 100%; }
+.tt-table td { padding: 1px 0; font-size: 12px; }
+.tt-table td:first-child { padding-right: 12px; color: #5b6781; white-space: nowrap; }
+.tt-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; color: #1b2a4a; }
+.tt-table tr.cur td { color: #bd0026; font-weight: 700; }
+.tt-table .na { color: #aab0bd; }
+.tt-foot { margin-top: 5px; font-size: 11.5px; color: #5b6781; }
 
 /* Add to your <style> block */
 #drawer {
@@ -200,8 +210,8 @@ ELECTIONS.forEach((e) => { e.name = `${e.year} ${e.short}`; });
 const map = new mapboxgl.Map({
   container: 'map',                          // matches <div id="map">
   style: 'mapbox://styles/mapbox/light-v11', // a clean, light basemap
-  center: [-73.96, 40.71],                   // [longitude, latitude] of NYC
-  zoom: 9.8,
+  center: [-74.05, 40.70],                   // [longitude, latitude] of NYC
+  zoom: 10.1,
   hash: true   // sync map position to the URL (#zoom/lat/lng) so views are shareable
 });
 
@@ -306,14 +316,22 @@ map.on('load', () => {
 
   // The numbers shown for one district in the CURRENT election.
   function describe(props) {
-    if (!hasData(props)) {
-      return { name: `Election District ${props.ElectDist}`, sub: `No data for ${cur.name}` };
-    }
-    const t = props['t' + cur.key], v = props['v' + cur.key], r = props['r' + cur.key];
+    const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
+    // One row per election (most recent first), with the current election highlighted.
+    const rows = ELECTIONS.slice().reverse().map((m) => {
+      const tv = props['t' + m.key];
+      const cell = (tv === undefined) ? '<span class="na">no race</span>' : pct(tv);
+      const cls = m.key === cur.key ? ' class="cur"' : '';
+      return `<tr${cls}><td>${m.year} ${m.short}</td><td>${cell}</td></tr>`;
+    }).join('');
+    const foot = hasData(props)
+      ? `${cur.name}: ${props['v' + cur.key].toLocaleString()} of ${props['r' + cur.key].toLocaleString()} voted`
+      : `No turnout for ${cur.name}`;
     return {
       name: `Election District ${props.ElectDist}`,
-      sub: `${cur.name}<br>Turnout: <b>${(t * 100).toFixed(1)}%</b><br>` +
-           `${v.toLocaleString()} of ${r.toLocaleString()} registered voters`
+      sub: `<div class="tt-head">Turnout by election</div>` +
+           `<table class="tt-table">${rows}</table>` +
+           `<div class="tt-foot">${foot}</div>`
     };
   }
 
@@ -416,7 +434,7 @@ map.on('load', () => {
     });
 
     // Click a district to PIN its numbers in a popup that stays put.
-    const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '240px' });
+    const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '260px' });
     map.on('click', 'districts-hit', (e) => {
       const f = e.features[0];
       if (!hasData(f.properties)) return;
@@ -456,10 +474,10 @@ map.on('load', () => {
   // ---- Cinematic swoop-in on first load ----
   // Skipped when the page is opened via a shared #hash link, so those land exactly.
   if (!window.location.hash) {
-    map.jumpTo({ center: [-73.96, 40.71], zoom: 2.4 });
+    map.jumpTo({ center: [-74.05, 40.70], zoom: 2.4 });
     map.flyTo({
-      center: [-73.96, 40.71],
-      zoom: 9.8,
+      center: [-74.05, 40.70],
+      zoom: 10.1,
       speed: 0.7,      // gentler = slower swoop
       curve: 1.6,      // arc of the zoom path
       essential: true  // run even if the user prefers reduced motion off
