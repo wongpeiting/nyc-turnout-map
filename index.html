@@ -160,7 +160,6 @@
     <div class="row"><span class="swatch" style="background:#bd0026"></span><span class="label"></span></div>
     <div class="row"><span class="swatch" style="background:#f03b20"></span><span class="label"></span></div>
     <div class="row"><span class="swatch" style="background:#fd8d3c"></span><span class="label"></span></div>
-    <div class="row"><span class="swatch" style="background:#fecc5c"></span><span class="label"></span></div>
     <div class="row"><span class="swatch" style="background:#ffffb2"></span><span class="label"></span></div>
     <button id="filter-reset" type="button">Show all districts</button>
     <div class="hint">Bands rescale to each election. Click a band to isolate it; click a district to pin its numbers.</div>
@@ -195,14 +194,14 @@ mapboxgl.accessToken = 'pk.eyJ1Ijoid29uZ3BlaXRpbmciLCJhIjoiY21xdnJmeTlkMThrcjJzb
 // per-election quintile cutoffs from build_series.py, so the choropleth rescales to
 // each race (primaries run far lower than generals). Regenerate via build_series.py.
 const ELECTIONS = [
-  { key: '22SP', year: '2022', short: 'State Primary',        breaks: [0.084, 0.112, 0.145, 0.2000] },
-  { key: '22FP', year: '2022', short: 'Federal Primary',      breaks: [0.064, 0.095, 0.1322, 0.222] },
-  { key: '22G',  year: '2022', short: 'General Election',     breaks: [0.252, 0.326, 0.404, 0.5126] },
-  { key: '23CP', year: '2023', short: 'City Primary',         breaks: [0.036, 0.050, 0.068, 0.104] },
-  { key: '23G',  year: '2023', short: 'General Election',     breaks: [0.072, 0.099, 0.130, 0.176] },
-  { key: '24PP', year: '2024', short: 'Presidential Primary', breaks: [0.033, 0.047, 0.065, 0.093] },
-  { key: '24SP', year: '2024', short: 'State Primary',        breaks: [0.048, 0.069, 0.097, 0.146] },
-  { key: '24G',  year: '2024', short: 'General Election',     breaks: [0.495, 0.558, 0.621, 0.708] },
+  { key: '22SP', year: '2022', short: 'State Primary',        breaks: [0.05, 0.10, 0.15] },
+  { key: '22FP', year: '2022', short: 'Federal Primary',      breaks: [0.05, 0.10, 0.15] },
+  { key: '22G',  year: '2022', short: 'General Election',     breaks: [0.40, 0.60, 0.80] },
+  { key: '23CP', year: '2023', short: 'City Primary',         breaks: [0.05, 0.10, 0.15] },
+  { key: '23G',  year: '2023', short: 'General Election',     breaks: [0.40, 0.60, 0.80] },
+  { key: '24PP', year: '2024', short: 'Presidential Primary', breaks: [0.05, 0.10, 0.15] },
+  { key: '24SP', year: '2024', short: 'State Primary',        breaks: [0.05, 0.10, 0.15] },
+  { key: '24G',  year: '2024', short: 'General Election',     breaks: [0.40, 0.60, 0.80] },
 ];
 // Full label used in tooltips/popups, e.g. "2024 General Election".
 ELECTIONS.forEach((e) => { e.name = `${e.year} ${e.short}`; });
@@ -256,7 +255,7 @@ map.on('load', () => {
     (l) => l.type === 'symbol' && l.layout && l.layout['text-field']
   )?.id;
 
-  const RAMP = ['#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']; // low → high turnout
+  const RAMP = ['#bd0026', '#f03b20', '#fd8d3c', '#ffffb2']; // low → high turnout (4 bands)
   const FADE = 450;                            // crossfade duration between elections (ms)
   const FILL = 0.7;                            // resting opacity of the colored districts
   let cur = ELECTIONS[ELECTIONS.length - 1];   // default to the most recent election
@@ -272,7 +271,7 @@ map.on('load', () => {
     'case',
     ['!', ['has', tkey(m)]], 'rgba(0,0,0,0)',
     ['step', ['get', tkey(m)],
-      RAMP[0], m.breaks[0], RAMP[1], m.breaks[1], RAMP[2], m.breaks[2], RAMP[3], m.breaks[3], RAMP[4]]
+      RAMP[0], m.breaks[0], RAMP[1], m.breaks[1], RAMP[2], m.breaks[2], RAMP[3]]
   ];
   const lineOpacity = (m) => ['case', ['!', ['has', tkey(m)]], 0, 1]; // hide no-data borders
 
@@ -340,16 +339,17 @@ map.on('load', () => {
   const bandRows = Array.from(legendEl.querySelectorAll('.row'));
   const resetBtn = document.getElementById('filter-reset');
   const primaryNote = document.getElementById('primary-note');
-  const fmtPct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
+  const fmtPct = (x) => Math.round(x * 100) + '%';   // breaks are rounded to whole percents
 
-  const bandRange = (i, br) => [i === 0 ? '' : br[i - 1], i === 4 ? '' : br[i]]; // [min,max]
+  const bandRange = (i, br) => [i === 0 ? '' : br[i - 1], i === br.length ? '' : br[i]]; // [min,max]
 
   function relabelLegend(br) {
+    const last = bandRows.length - 1;
     bandRows.forEach((row, i) => {
       const [lo, hi] = bandRange(i, br);
       row.querySelector('.label').textContent =
-        i === 0 ? `Under ${fmtPct(hi)}` :
-        i === 4 ? `${fmtPct(lo)} and up` :
+        i === 0    ? `Under ${fmtPct(hi)}` :
+        i === last ? `${fmtPct(lo)} and up` :
         `${fmtPct(lo)}–${fmtPct(hi)}`;
     });
   }
