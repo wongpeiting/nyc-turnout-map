@@ -1,13 +1,13 @@
 # The Turnout Divide — NYC voter turnout, 2022–2024
 
-An interactive choropleth of voter turnout across New York City's roughly 4,000 election districts. A time slider steps through **eight elections from 2022 to 2024** (primaries and general elections), crossfading between them. Each district is shaded by the share of its registered voters who cast a ballot, and the color scale **rescales to each election** so low-turnout primaries stay legible alongside high-turnout generals. Hover or click any district for its turnout rate and raw counts.
+An interactive choropleth of voter turnout across New York City's roughly 4,000 election districts. A time slider steps through **eight elections from 2022 to 2024** (primaries and general elections), crossfading between them. Each district is shaded by the share of its registered voters who cast a ballot, using **round-number color bands scaled to each election type** (generals 20/40/60/80%, primaries 5/10/15/20%) so the low-turnout extreme stays visible while primaries stay legible alongside generals. Hover or click any district for its turnout rate and raw counts.
 
 Built with [Mapbox GL JS](https://docs.mapbox.com/mapbox-gl-js/).
 
 ## Features
 
 - **Time slider** through eight elections, with a 450ms crossfade between them.
-- **Adaptive color** — per-election quintile breaks, so each map shows its own spread.
+- **Round-number color bands** scaled per election type, so the under-20% extreme stays visible and filterable while primaries stay legible.
 - **Click a legend band** to isolate those districts; **click a district** to pin its numbers.
 - **Locate me** (GPS), shareable **URL view state** (`#zoom/lat/lng`), and a swoop-in on load.
 
@@ -43,5 +43,3 @@ If the election set or breaks change, update the inline `ELECTIONS` array near t
 python3 -m http.server 8000
 # then open http://localhost:8000/index.html
 ```
-
-The Mapbox access token in `index.html` is a public client-side token restricted by URL in the Mapbox account to `https://wongpeiting.github.io/`. Because of that restriction the basemap tiles (and their labels) will not load from `localhost` or `file://` — only from the published GitHub Pages URL. The colored districts still draw locally since they come from the local GeoJSON, which does not need the token.

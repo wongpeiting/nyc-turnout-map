@@ -46,20 +46,14 @@ def parse_electdist(geo_unit):
     return int(f"{int(parts[0])}{parts[1].zfill(3)}")
 
 
-def quintile_breaks(vals):
-    """4 interior breakpoints (20/40/60/80th pct) splitting vals into 5 bins."""
-    vals = sorted(vals)
-    n = len(vals)
+# Fixed, round-number color breaks, scaled to each election type so an "Under 20%"
+# band exists for generals and primaries stay legible at their much lower turnout.
+GENERAL_BREAKS = [0.20, 0.40, 0.60, 0.80]
+PRIMARY_BREAKS = [0.05, 0.10, 0.15, 0.20]
 
-    def pct(p):
-        if n == 1:
-            return vals[0]
-        idx = p * (n - 1)
-        lo = int(idx)
-        hi = min(lo + 1, n - 1)
-        return vals[lo] + (vals[hi] - vals[lo]) * (idx - lo)
 
-    return [round(pct(q), 4) for q in (0.2, 0.4, 0.6, 0.8)]
+def breaks_for(name):
+    return GENERAL_BREAKS if "General" in name else PRIMARY_BREAKS
 
 
 def main():
@@ -123,7 +117,7 @@ def main():
             "date": dates[name],
             "year": years[name],
             "n": len(vals),
-            "breaks": quintile_breaks(vals),
+            "breaks": breaks_for(name),
         })
     # chronological slider order (dates are MM/DD/YYYY -> sort by Y, M, D)
     def datekey(m):
