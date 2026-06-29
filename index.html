@@ -153,7 +153,7 @@
   <!-- Top-left panel: headline, dek, search box, legend -->
 <div id="headline">
   <div class="title">The Turnout Divide</div>
-  <div class="subtitle">New York City backed Kamala Harris in the 2024 General Election, but turnout was wildly uneven, ranging from under 20% of registered voters in some election districts to more than 80% in others. Hover any district for the numbers.</div>
+  <div class="subtitle">New York City backed Kamala Harris in the 2024 General Election, but turnout varied sharply across the city's neighborhoods. Hover any district for the numbers.</div>
   <div id="search"></div>
   <div id="legend">
     <h4>Voter turnout</h4>
@@ -195,14 +195,14 @@ mapboxgl.accessToken = 'pk.eyJ1Ijoid29uZ3BlaXRpbmciLCJhIjoiY21xdnJmeTlkMThrcjJzb
 // per-election quintile cutoffs from build_series.py, so the choropleth rescales to
 // each race (primaries run far lower than generals). Regenerate via build_series.py.
 const ELECTIONS = [
-  { key: '22SP', year: '2022', short: 'State Primary',        breaks: [0.05, 0.10, 0.15, 0.20] },
-  { key: '22FP', year: '2022', short: 'Federal Primary',      breaks: [0.05, 0.10, 0.15, 0.20] },
-  { key: '22G',  year: '2022', short: 'General Election',     breaks: [0.20, 0.40, 0.60, 0.80] },
-  { key: '23CP', year: '2023', short: 'City Primary',         breaks: [0.05, 0.10, 0.15, 0.20] },
-  { key: '23G',  year: '2023', short: 'General Election',     breaks: [0.20, 0.40, 0.60, 0.80] },
-  { key: '24PP', year: '2024', short: 'Presidential Primary', breaks: [0.05, 0.10, 0.15, 0.20] },
-  { key: '24SP', year: '2024', short: 'State Primary',        breaks: [0.05, 0.10, 0.15, 0.20] },
-  { key: '24G',  year: '2024', short: 'General Election',     breaks: [0.20, 0.40, 0.60, 0.80] },
+  { key: '22SP', year: '2022', short: 'State Primary',        breaks: [0.084, 0.112, 0.145, 0.2000] },
+  { key: '22FP', year: '2022', short: 'Federal Primary',      breaks: [0.064, 0.095, 0.1322, 0.222] },
+  { key: '22G',  year: '2022', short: 'General Election',     breaks: [0.252, 0.326, 0.404, 0.5126] },
+  { key: '23CP', year: '2023', short: 'City Primary',         breaks: [0.036, 0.050, 0.068, 0.104] },
+  { key: '23G',  year: '2023', short: 'General Election',     breaks: [0.072, 0.099, 0.130, 0.176] },
+  { key: '24PP', year: '2024', short: 'Presidential Primary', breaks: [0.033, 0.047, 0.065, 0.093] },
+  { key: '24SP', year: '2024', short: 'State Primary',        breaks: [0.048, 0.069, 0.097, 0.146] },
+  { key: '24G',  year: '2024', short: 'General Election',     breaks: [0.495, 0.558, 0.621, 0.708] },
 ];
 // Full label used in tooltips/popups, e.g. "2024 General Election".
 ELECTIONS.forEach((e) => { e.name = `${e.year} ${e.short}`; });
@@ -340,7 +340,7 @@ map.on('load', () => {
   const bandRows = Array.from(legendEl.querySelectorAll('.row'));
   const resetBtn = document.getElementById('filter-reset');
   const primaryNote = document.getElementById('primary-note');
-  const fmtPct = (x) => Math.round(x * 100) + '%';   // breaks are round numbers
+  const fmtPct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
 
   const bandRange = (i, br) => [i === 0 ? '' : br[i - 1], i === 4 ? '' : br[i]]; // [min,max]
 
