@@ -1,4 +1,4 @@
-# The Turnout Divide — NYC voter turnout, 2022–2024
+# The Missing Electorate — NYC voter turnout, 2022–2024
 
 An interactive choropleth of voter turnout across New York City's roughly 4,000 election districts. A time slider steps through **eight elections from 2022 to 2024** (primaries and general elections), crossfading between them. Each district is shaded by the share of its registered voters who cast a ballot, using **even color bands scaled to each election type** (generals 40/60/80%, primaries 5/10/15%) so primaries stay legible alongside generals. Hover or click any district for its turnout rate and raw counts.
 
