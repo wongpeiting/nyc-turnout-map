@@ -145,6 +145,36 @@
 /* Push the top-right controls (+/-, compass, locate-me) further from the corner */
 .mapboxgl-ctrl-top-right { top: 16px; right: 16px; }
 
+/* ---- Mobile / small screens ---- */
+@media (max-width: 640px) {
+  /* Panel hugs the top edge, spans the width, and scrolls if it runs tall */
+  #headline {
+    top: 10px; left: 10px; right: 10px;
+    width: auto; max-width: none;
+    padding: 12px 14px;
+    max-height: 70vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  #headline .title { font-size: 24px; }
+  #headline .subtitle { font-size: 14px; margin-top: 6px; }
+  #search { margin-top: 10px; }
+  #search .mapboxgl-ctrl-geocoder { font-size: 15px; }
+  #legend { margin-top: 10px; padding-top: 10px; font-size: 14px; }
+  #legend h4 { font-size: 14px; }
+  #legend .swatch { width: 15px; height: 15px; }
+  #legend .hint { font-size: 11px; }
+  #timeslider { margin-top: 10px; padding-top: 10px; }
+
+  /* Move the zoom/locate controls to the bottom so the top panel never covers them */
+  .mapboxgl-ctrl-top-right { top: auto; bottom: 18px; right: 10px; }
+  .mapboxgl-ctrl-group button { width: 38px; height: 38px; }
+}
+
+/* Very narrow phones: trim the headline further so it doesn't dominate */
+@media (max-width: 380px) {
+  #headline .title { font-size: 21px; }
+  #headline { max-height: 64vh; }
+}
+
   </style>
 </head>
 <body>
@@ -261,7 +291,7 @@ map.on('load', () => {
   let cur = ELECTIONS[ELECTIONS.length - 1];   // default to the most recent election
   let activeBand = null;                       // 0..4 when a legend band is isolated
   let front = 'districts-fill-a';              // which fill layer currently shows `cur`
-  const dataLayers = ['districts-fill-a', 'districts-fill-b', 'districts-line', 'districts-hover', 'districts-hit'];
+  const dataLayers = ['districts-fill-a', 'districts-fill-b', 'districts-hover', 'districts-hit'];
   const tkey = (m) => 't' + m.key;             // turnout property name for an election
   const hasData = (props) => tkey(cur) in props;
 
@@ -273,17 +303,14 @@ map.on('load', () => {
     ['step', ['get', tkey(m)],
       RAMP[0], m.breaks[0], RAMP[1], m.breaks[1], RAMP[2], m.breaks[2], RAMP[3]]
   ];
-  const lineOpacity = (m) => ['case', ['!', ['has', tkey(m)]], 0, 1]; // hide no-data borders
 
-  // Two stacked fill layers we crossfade between; white borders + a hover-only dark
-  // outline on top; and a fully transparent "hit" layer that catches hover/clicks so
-  // interactions don't care which fill layer is currently fading.
+  // Two stacked fill layers we crossfade between (no district outlines, to keep the
+  // map clean); a hover-only dark outline on top; and a fully transparent "hit" layer
+  // that catches hover/clicks so interactions don't care which fill is currently fading.
   map.addLayer({ id: 'districts-fill-a', type: 'fill', source: 'districts',
     paint: { 'fill-color': fillColor(cur), 'fill-opacity': FILL, 'fill-opacity-transition': { duration: FADE } } }, labelLayerId);
   map.addLayer({ id: 'districts-fill-b', type: 'fill', source: 'districts',
     paint: { 'fill-color': fillColor(cur), 'fill-opacity': 0,    'fill-opacity-transition': { duration: FADE } } }, labelLayerId);
-  map.addLayer({ id: 'districts-line', type: 'line', source: 'districts',
-    paint: { 'line-color': '#ffffff', 'line-width': 0.5, 'line-opacity': lineOpacity(cur) } }, labelLayerId);
   map.addLayer({ id: 'districts-hover', type: 'line', source: 'districts',
     paint: { 'line-color': '#111111', 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0] } }, labelLayerId);
   map.addLayer({ id: 'districts-hit', type: 'fill', source: 'districts',
@@ -400,7 +427,6 @@ map.on('load', () => {
       map.setPaintProperty(front, 'fill-opacity', FILL);
       map.setPaintProperty(back, 'fill-opacity', 0);
     }
-    map.setPaintProperty('districts-line', 'line-opacity', lineOpacity(cur));
     relabelLegend(cur.breaks);
     if (activeBand !== null) applyBand(activeBand);   // keep the isolated band, rescaled
     label.innerHTML = `<span class="yr">${cur.year}</span> ${cur.short}`;
